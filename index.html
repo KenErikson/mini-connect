@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>The Mini Connect</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f8ff;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    #score {
+      font-size: 1.1rem;
+      margin-bottom: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 60px);
+      grid-gap: 20px;
+      transition: background-color 0.2s ease;
+    }
+
+    .dot, .square, .goal, .obstacle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: lightblue;
+      pointer-events: none;
+    }
+
+    .square {
+      border-radius: 8px;
+      background-color: #007fff;
+    }
+
+    .goal {
+      background-color: #00cc44;
+    }
+
+    .obstacle {
+      background-color: red;
+    }
+
+    #message {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      color: #007f00;
+      height: 1.5em;
+    }
+
+    .flash-success {
+      animation: flashGreen 0.4s;
+    }
+
+    .flash-failure {
+      animation: flashRed 0.4s;
+    }
+
+    @keyframes flashGreen {
+      0% { background-color: #f0f8ff; }
+      50% { background-color: #aaffaa; }
+      100% { background-color: #f0f8ff; }
+    }
+
+    @keyframes flashRed {
+      0% { background-color: #f0f8ff; }
+      50% { background-color: #ffb3b3; }
+      100% { background-color: #f0f8ff; }
+    }
+  </style>
+</head>
+<body>
+  <h1>The Mini Connect</h1>
+  <div id="score">Score: 0</div>
+  <div class="grid" id="dotGrid"></div>
+
+  <script>
+    const grid = document.getElementById('dotGrid');
+    const scoreDisplay = document.getElementById('score');
+    const totalCells = 16;
+    const gridSize = 4;
+    let squareIndex, goalIndex, obstacleIndices;
+    let score = getScoreFromCookie() || 0; // Initialize score from cookie if available
+
+    const directions = [-1, 1, -gridSize, gridSize];
+
+    function getRandomIndex(exclude = []) {
+      let index;
+      do {
+        index = Math.floor(Math.random() * totalCells);
+      } while (exclude.includes(index));
+      return index;
+    }
+
+    function getMultipleRandomIndices(count, exclude = []) {
+      const indices = [];
+      while (indices.length < count) {
+        const idx = getRandomIndex([...exclude, ...indices]);
+        indices.push(idx);
+      }
+      return indices;
+    }
+
+    function isValidGrid(squareIdx, goalIdx, obstacles) {
+      const visited = new Set();
+      const queue = [[squareIdx, 0]];
+
+      while (queue.length > 0) {
+        const [current, dist] = queue.shift();
+        if (current === goalIdx) return dist >= 3;
+
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const row = Math.floor(current / gridSize);
+        const col = current % gridSize;
+
+        for (const dir of directions) {
+          const next = current + dir;
+          const nextRow = Math.floor(next / gridSize);
+          const nextCol = next % gridSize;
+
+          const rowDiff = Math.abs(nextRow - row);
+          const colDiff = Math.abs(nextCol - col);
+
+          if (
+            next >= 0 &&
+            next < totalCells &&
+            !obstacles.includes(next) &&
+            (rowDiff + colDiff === 1)
+          ) {
+            queue.push([next, dist + 1]);
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function generateValidGrid() {
+      let attempts = 0;
+      do {
+        const obstacleCount = Math.floor(Math.random() * 6) + 3; // Random obstacles from 3 to 8
+        squareIndex = getRandomIndex();
+        goalIndex = getRandomIndex([squareIndex]);
+        obstacleIndices = getMultipleRandomIndices(obstacleCount, [squareIndex, goalIndex]);
+        attempts++;
+        if (attempts > 1000) break; // fail-safe
+      } while (!isValidGrid(squareIndex, goalIndex, obstacleIndices));
+    }
+
+    function renderGrid() {
+      grid.innerHTML = '';
+      for (let i = 0; i < totalCells; i++) {
+        const cell = document.createElement('div');
+
+        if (i === squareIndex && i === goalIndex) {
+          cell.className = 'square';
+        } else if (i === squareIndex) {
+          cell.className = 'square';
+        } else if (i === goalIndex) {
+          cell.className = 'goal';
+        } else if (obstacleIndices.includes(i)) {
+          cell.className = 'obstacle';
+        } else {
+          cell.className = 'dot';
+        }
+
+        grid.appendChild(cell);
+      }
+
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function resetGrid(newScore = false) {
+      renderGrid();
+      const animationClass = newScore ? 'flash-success' : 'flash-failure';
+      if (newScore) score++;
+      saveScoreToCookie(score);
+
+      grid.classList.add(animationClass);
+
+      setTimeout(() => {
+        grid.classList.remove(animationClass);
+        generateValidGrid();
+        renderGrid();
+      }, 500);
+    }
+
+    function moveSquare(direction) {
+      let row = Math.floor(squareIndex / gridSize);
+      let col = squareIndex % gridSize;
+
+      switch (direction) {
+        case 'ArrowUp':
+        case 'w':
+          if (row > 0) row--;
+          break;
+        case 'ArrowDown':
+        case 's':
+          if (row < gridSize - 1) row++;
+          break;
+        case 'ArrowLeft':
+        case 'a':
+          if (col > 0) col--;
+          break;
+        case 'ArrowRight':
+        case 'd':
+          if (col < gridSize - 1) col++;
+          break;
+      }
+
+      const newIndex = row * gridSize + col;
+
+      if (obstacleIndices.includes(newIndex)) {
+        squareIndex = newIndex;
+        resetGrid(false);
+      } else if (newIndex === goalIndex) {
+        squareIndex = newIndex;
+        resetGrid(true);
+      } else {
+        squareIndex = newIndex;
+        renderGrid();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(key)) {
+        e.preventDefault();
+        moveSquare(key);
+      }
+    });
+
+    function saveScoreToCookie(score) {
+      const expires = new Date();
+      expires.setFullYear(expires.getFullYear() + 1); // Set cookie to expire in 1 year
+      document.cookie = `score=${score}; expires=${expires.toUTCString()}; path=/`;
+    }
+
+    function getScoreFromCookie() {
+      const cookies = document.cookie.split('; ');
+      for (let cookie of cookies) {
+        const [name, value] = cookie.split('=');
+        if (name === 'score') {
+          return parseInt(value, 10);
+        }
+      }
+      return 0; // Default score if no cookie exists
+    }
+
+    generateValidGrid();
+    renderGrid();
+  </script>
+</body>
+</html>
