@@ -90,6 +90,7 @@
     const scoreDisplay = document.getElementById('score');
     const totalCells = 16;
     const gridSize = 4;
+    let canMove = true;
     let squareIndex, goalIndex, obstacleIndices;
     let score = getScoreFromCookie() || 0; // Initialize score from cookie if available
 
@@ -179,15 +180,15 @@
 
         grid.appendChild(cell);
       }
-
-      scoreDisplay.textContent = `Score: ${score}`;
     }
 
     function resetGrid(newScore = false) {
+      canMove=false;
       renderGrid();
       const animationClass = newScore ? 'flash-success' : 'flash-failure';
       if (newScore) score++;
       saveScoreToCookie(score);
+      scoreDisplay.textContent = `Score: ${score}`;
 
       grid.classList.add(animationClass);
 
@@ -195,10 +196,12 @@
         grid.classList.remove(animationClass);
         generateValidGrid();
         renderGrid();
+        canMove = true;
       }, 500);
     }
 
     function moveSquare(direction) {
+      if (!canMove) return;
       let row = Math.floor(squareIndex / gridSize);
       let col = squareIndex % gridSize;
 
@@ -222,6 +225,10 @@
       }
 
       const newIndex = row * gridSize + col;
+
+      if (newIndex == squareIndex ) {
+        return;
+      }
 
       if (obstacleIndices.includes(newIndex)) {
         squareIndex = newIndex;
